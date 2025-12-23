@@ -40,9 +40,10 @@ if __name__ == "__main__":
     
     stats = {
         "attack_speed": "20 + ([2]*0.5)",
-        "force": "[48] / 10",
+        "force": "[48]/10",
         "AGI": "32",
-        "speed": "AGI * 2.5"
+        "DEFENSE": '[48]',
+        "speed": "AGI * [12] - DEFENSE"
     }
     
     sheet = sheetManager.get_sheet("s1")
