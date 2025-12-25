@@ -1,10 +1,10 @@
-from ast import literal_eval
 from pprint import pprint
 from dataclasses import dataclass
 from typing import Any
 import re
-from exceptions import InvalidExpression
-from decimal import Decimal, localcontext, ROUND_HALF_UP
+from .exceptions import InvalidExpression, NotFound
+from decimal import Decimal, localcontext
+from .finals import DEFAULT_ROUNDING
 
 class SafeExpression(str):
     """
@@ -20,7 +20,10 @@ class SafeExpression(str):
         
         invalid_chars = set(expr) - cls.VALID_CHARS
         if invalid_chars:
-            raise InvalidExpression(f"'{expr}' is not a valid expression")
+            chars = list(invalid_chars)[:3]
+            examples = ', '.join([f"'{c}'" for c in chars])
+            label = str(expr[:64]+" [...]").strip() if len(expr) > 64 else expr
+            raise InvalidExpression(f"'{label}' is not a valid expression. Characters such as {examples} are not allowed.")
         
         # Create and return the string instance
         return super().__new__(cls, expr.strip())
@@ -44,46 +47,37 @@ class Sheet:
         for id in ids:
             self.stats.pop(id)
     
-    def solve_expressions(self, ns_censuses: dict[int, Any] = None, rounding = ROUND_HALF_UP):
-        if not isinstance(ns_censuses, dict):
+    def solve_expressions(self, ns_censuses: dict[int, Any] = None, rounding = DEFAULT_ROUNDING):
+        if ns_censuses and not isinstance(ns_censuses, dict):
             raise TypeError(f"ns_censuses must be a dictionary, not {type(ns_censuses).__name__}")
         all_stats = self.get_all_stats()
         solved_sheet = {}
         
-        def parse_brackets(expr: SafeExpression):
+        def parse_brackets(expr: str):
+            def parse_match(match: str):
+                replacement = ns_censuses[int(match.group(1))]
+                return replacement
             pattern = r"(\[(\d+)\])"
-            matches = re.findall(pattern, expr)
-            new_expr = expr
-            if matches:
-                for m in matches:
-                    brackets_pattern = m[0]
-                    census_id = int(m[1])
-                    
-                    new_expr = new_expr.replace(brackets_pattern, str(ns_censuses[census_id]))
-                return new_expr
-            return expr
-        def parse_existing_stats(expr: SafeExpression):
-            pattern = r"[a-zA-Z]+"
-            string_variables = re.findall(pattern, expr)
-            if string_variables:
-                non_existing = set(string_variables) - set(all_stats.keys())
-                if non_existing:
-                    raise ValueError(f"Couldn't parse {non_existing} in '{expr}'")
-                for var in string_variables:
-                    match: None | str = all_stats.get(var)
-                    expr = expr.replace(var, match)
-                return expr
-            return expr
+            new_expr = re.sub(pattern, parse_match, expr)
+            return new_expr
+        def parse_existing_stats(expr: str):
+            def parse_match(match: str):
+                stat_name = match.group(0)
+                replacement = all_stats.get(stat_name)
+                if replacement == None:
+                    raise NotFound(f"Couldn't parse '{expr}', '{stat_name}' not found")
+                return parse_existing_stats(replacement)
+            pattern = r"[a-z_A-Z]+"
+            new_expr = re.sub(pattern, parse_match, expr)
+            return new_expr
                 
         def evaluate_expression(expr: str) -> Any:
             safe_expr = SafeExpression(expr)
             def numbers_to_decimals(x: str):
+                def parse_match(match: str):
+                    return f"Decimal('{match.group(0)}')"
                 pattern = r'-?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?'
-                numbers = re.findall(pattern, expr)
-                new_string = x
-                if numbers:
-                    for n in numbers:
-                        new_string = new_string.replace(n, f"Decimal('{n}')")
+                new_string = re.sub(pattern, parse_match, x)
                 return new_string
             with localcontext() as local_context:
                 safe_globals = {"__builtins__": {}}
