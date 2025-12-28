@@ -28,6 +28,78 @@ class SafeExpression(str):
         # Create and return the string instance
         return super().__new__(cls, expr.strip())
 
+class InnerFunctions:
+    def __init__(self):
+        pass
+    def call(self, identifier: str, **kwargs):
+        def bigger(values: list):
+            return max(x)
+        match identifier:
+            case "BIGGER":
+                arg = kwargs["values"]
+                return bigger(arg)
+
+class Parser:
+    def __init__(self):
+        self.variables_pattern = re.compile(r"([a-zA-Z_]+):\s*?")
+        self.censuses_pattern = re.compile(r"\[(\d+)\]")
+        self.expressions_pattern = re.compile(r"\{([\s\S]*?)\}")
+        self.comments_pattern = re.compile(r"(\/\/\s*[\s\S]*?\s*\/\/)")
+        self.functions_pattern = re.compile(r"([A-Z]+)\(([\s\S]*?)\)")
+
+    def parse_censuses(self, string: str, data: dict):
+        """
+        Detects all censuses from the given expression and returns a list with their respective ids
+        """
+        all_censuses = self.censuses_pattern.findall(string)
+        ids = [int(match) for match in all_censuses]
+        parsed_string = string
+        for id in ids:
+            try:
+                parsed_string = self.censuses_pattern.sub(str(data[id]), string)
+            except KeyError:
+                raise NotFound(f"Unable to parse census of id '{id}', it's data wasn't provided")
+        return parsed_string
+    def parse_variables(self, string: str):
+        return self.variables_pattern.findall(string)
+    def parse_functions(self, string: str):
+        matches = self.functions_pattern.findall(string)
+        funcs = {id: expr for id, expr in matches}
+        return funcs
+    def parse_expressions(self, string: str):
+        expressions = self.expressions_pattern.findall(string)
+        return expressions
+    def remove_comments(self, string: str):
+        """
+        Removes comments, such as // this one! //
+        """
+        return self.comments_pattern.sub("", string)
+    def remove_whitespaces(self, string: str):
+        """
+        Removes whitespaces from a string
+        """
+        return re.sub(r"\s", "", string)
+    def turn_safe(self, expr: str):
+        """
+        Turns a normal string expression into a SafeExpression object
+        """
+        return SafeExpression(expr)
+    def to_dict(self, variables, expressions):
+        output = {}
+        for var, expr in zip(variables, expressions):
+            output.update({var: expr})
+        return output
+
+    def open_file(self, path: str) -> dict[str, str]:
+        """
+        Parses a file with the WiseNations syntax
+        """
+        with open(path, "r") as f:
+            data: str = f.read()
+            data = self.remove_comments(data)
+            data = self.remove_whitespaces(data)
+            return data
+
 @dataclass
 class Sheet:
     def __init__(self) -> None:
