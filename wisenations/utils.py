@@ -41,12 +41,16 @@ class InnerFunctions:
 
 class Parser:
     def __init__(self):
-        self.variables_pattern = re.compile(r"([a-zA-Z_]+):\s*?")
+        #self.assigned_variables_pattern = re.compile(r"([a-zA-Z_]+):\s*?")
         self.censuses_pattern = re.compile(r"\[(\d+)\]")
-        self.expressions_pattern = re.compile(r"\{([\s\S]*?)\}")
+#self.expressions_pattern = re.compile(r"\{([\s\S]*?)\}")
+        self.variable_expression_assignment = re.compile(r"([a-zA-Z_]+):\s*?\{([\s\S]*?)\}\s*?")
         self.comments_pattern = re.compile(r"(\/\/\s*[\s\S]*?\s*\/\/)")
         self.functions_pattern = re.compile(r"([A-Z]+)\(([\s\S]*?)\)")
 
+    def find_variables_and_expressions(self, string: str):
+        matches = self.variable_expression_assignment.findall(string)
+        return {var: expr for var, expr in matches}
     def parse_censuses(self, string: str, data: dict):
         """
         Detects all censuses from the given expression and returns a list with their respective ids
@@ -60,13 +64,13 @@ class Parser:
             except KeyError:
                 raise NotFound(f"Unable to parse census of id '{id}', it's data wasn't provided")
         return parsed_string
-    def parse_variables(self, string: str):
-        return self.variables_pattern.findall(string)
-    def parse_functions(self, string: str):
+    #def parse_assigned_variables(self, string: str):
+        return self.assigned_variables_pattern.findall(string)
+    def find_functions(self, string: str):
         matches = self.functions_pattern.findall(string)
         funcs = {id: expr for id, expr in matches}
         return funcs
-    def parse_expressions(self, string: str):
+    #def parse_expressions(self, string: str):
         expressions = self.expressions_pattern.findall(string)
         return expressions
     def remove_comments(self, string: str):
@@ -84,13 +88,13 @@ class Parser:
         Turns a normal string expression into a SafeExpression object
         """
         return SafeExpression(expr)
-    def to_dict(self, variables, expressions):
+    #def to_dict(self, variables, expressions):
         output = {}
         for var, expr in zip(variables, expressions):
             output.update({var: expr})
         return output
 
-    def open_file(self, path: str) -> dict[str, str]:
+    #def open_file(self, path: str) -> dict[str, str]:
         """
         Parses a file with the WiseNations syntax
         """
@@ -99,6 +103,13 @@ class Parser:
             data = self.remove_comments(data)
             data = self.remove_whitespaces(data)
             return data
+
+class Interpreter:
+    def __init__(self):
+        pass
+    
+    def evaluate_expression():
+        ...
 
 @dataclass
 class Sheet:
@@ -170,6 +181,22 @@ class Sheet:
             parsed = parse_expr(expr)
             solved_sheet.update({id: str(parsed)})
         return solved_sheet
+
+class SheetManager:
+    def __init__(self) -> None:
+        self.sheets = {}
+
+    def get_sheet(self, id: str) -> Sheet:
+        return self.sheets.get(id)
     
+    def get_all_sheets(self):
+        return self.sheets.items()
+   
+    def new_sheet(self, id: str) -> None:
+        self.sheets.update({id: Sheet()})
+    
+    def del_sheet(self, id: str) -> None:
+        self.sheets.pop(id)
+
 if __name__ == "__main__":
     pass

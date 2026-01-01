@@ -1,37 +1,25 @@
 import re
 from typing import Iterable, Any
 from pprint import pprint
-from .utils import Sheet, Parser
+from .utils import SheetManager, Sheet, Parser
 from dataclasses import dataclass
 
 @dataclass
-class SheetManager:
+class WiseNations:
     def __init__(self) -> None:
-        self.sheets = {}
-
-    def get_sheet(self, id: str) -> Sheet:
-        return self.sheets.get(id)
+        self._sheetManager = SheetManager()
+        self._parser = Parser()
     
-    def get_all_sheets(self):
-        return self.sheets.items()
-   
-    def new_sheet(self, id: str) -> None:
-        self.sheets.update({id: Sheet()})
-    
-    def del_sheet(self, id: str) -> None:
-        self.sheets.pop(id)
-
-class Interpreter:
-    def __init__(self):
-        self.custom_operators = {}
-        self.parser = Parser()
-    
-    def script_to_dict(self, file_path: str, **kwargs):
-        parsed_file: str = self.parser.open_file(file_path)
-        census_data = kwargs.get("census_data")
-        if census_data:
-            parsed_file = self.parser.parse_censuses(parsed_file, census_data)
-        return parsed_file
+    def sheet_manager(self) -> SheetManager:
+        return self._sheetManager
+    def read_string(self, string: str) -> dict[str, str]:
+        def assign(string: str):
+            string = self._parser.remove_comments(string)
+            string = self._parser.remove_whitespaces(string)
+            variables_and_expressions = self._parser.find_variables_and_expressions(string)
+            return variables_and_expressions
+        assigned = assign(string)
+        return assigned
 
 if __name__ == "__main__":
     pass

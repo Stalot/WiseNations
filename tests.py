@@ -1,4 +1,4 @@
-from wisenations import SheetManager, Interpreter
+from wisenations import WiseNations
 from pprint import pprint as pp
 from awesomeNations import AwesomeNations as AwesomeNations
 
@@ -12,6 +12,10 @@ for c in censuses["nation"]["census"]["scale"]:
     score = c["score"]
     census_data.update({id: score})
 
-inter= Interpreter()
-result = inter.script_to_dict("sample.txt", census_data=census_data)
-pp(result)
+wn = WiseNations()
+sheet_manager = wn.sheet_manager()
+sheet_manager.new_sheet("s1")
+
+with open("sample.txt", "r") as f:
+    result = wn.read_string(f.read())
+    print(result)

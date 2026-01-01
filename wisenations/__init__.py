@@ -1,1 +1,1 @@
-from .main import SheetManager, Interpreter
+from .main import WiseNations
