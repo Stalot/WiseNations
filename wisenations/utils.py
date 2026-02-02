@@ -3,8 +3,12 @@ from dataclasses import dataclass
 from typing import Any
 import re
 from .exceptions import InvalidExpression, NotFound
-from decimal import Decimal, localcontext
+from decimal import Decimal, localcontext, ROUND_HALF_UP
 from .finals import DEFAULT_ROUNDING
+
+# Testing Sympy implementation for expression evaluation
+# Wait, are you really reading this?
+from sympy import simplify
 
 class SafeExpression(str):
     """
@@ -27,6 +31,55 @@ class SafeExpression(str):
         
         # Create and return the string instance
         return super().__new__(cls, expr.strip())
+
+class ExprEvaluator:
+    """
+    A class for managing expression evaluation.
+    """
+    def __init__(self):
+        pass
+    
+    def eval_functions(self, sheet: dict[str, str]):
+        def rounding(value):
+            with localcontext() as lc:
+                lc.rounding = DEFAULT_ROUNDING
+                d = Decimal(str(value))
+                d = d.quantize(Decimal("0.001"))
+                return f"{d.normalize():f}"
+ 
+        for var, expr in sheet.items():
+            new_expr = simplify(expr,
+                                rational=True).n()
+            new_expr = rounding(new_expr)
+            sheet.update({var: new_expr})
+    
+
+class SheetSyntax:
+    def __init__(self):
+        pass
+    
+    def clear_spaces(self, text: str):
+        return text.replace(" ", "")
+    def sheet_to_dict(self, text: str):
+        def replace_vars(dictionary: dict):
+            for k, v in dictionary.items():
+                new_value = v
+                vars_found = re.findall(r"[a-z_]+", v)
+                for var in vars_found:
+                    repl: None | str = dictionary.get(var)
+                    if repl:
+                        pattern = rf"\b{var}\b"
+                        new_value = re.sub(pattern, repl, new_value)
+                dictionary[k] = new_value
+            return dictionary
+        data = re.findall(r"([a-z_]+?)=\{(.+?)\}",
+                          text,
+                          re.MULTILINE)
+        new_dict: dict[str, str] = {}
+        for key, value in data:
+            new_dict.update({key: value})
+        replace_vars(new_dict)
+        return new_dict
 
 @dataclass
 class Sheet:
