@@ -60,10 +60,27 @@ class SheetSyntax:
     
     def clear_spaces(self, text: str):
         return text.replace(" ", "")
-    def sheet_to_dict(self, text: str):
-        def replace_vars(dictionary: dict):
+    def sheet_to_dict(self,
+                      text: str,
+                      census_data: None | dict[int: str] = None):
+        def replace_censuses(expression: str,
+                             census_data: None | dict [int, str]) -> str:
+            new_expr = expression
+            censuses_found = re.findall(r"(\[(\d+)\])",
+                                        new_expr)
+            for census in censuses_found:
+                id: int = int(census[1]) # 13, 88, 2, ...
+                instance: str = str(census[0]) # [13], [88], [2], ...
+                if instance and not census_data or not id in census_data:   
+                    raise ValueError(f"{new_expr} -> '{instance}', census {id} not found in the given data!")
+                repl: None | str = census_data.get(id) if census_data else None
+                if repl:
+                    new_expr = new_expr.replace(instance, repl)
+            return new_expr
+        def replace_vars(dictionary: dict[str, str]) -> dict[str, str]:
             for k, v in dictionary.items():
                 new_value = v
+                new_value = replace_censuses(v, census_data)
                 vars_found = re.findall(r"[a-z_]+", v)
                 for var in vars_found:
                     repl: None | str = dictionary.get(var)

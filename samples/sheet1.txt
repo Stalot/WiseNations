@@ -1,0 +1,54 @@
+str = {[45]*[0]}
+dex = {32}
+int = {28}
+vit = {50}
+fth = {12}
+lck = {18}
+end = {35}
+wis = {22}
+
+max_hp = {(vit * 20) + (str * 5) + (end * 2)}
+max_mp = {(int * 15) + (wis * 10) + (fth * 5)}
+max_stamina = {(end * 8) + (vit * 2)}
+
+base_atk = {(str * 2.5) + (dex * 1.2)}
+magic_atk = {(int * 3.0) + (wis * 1.5)}
+true_dmg = {(fth * 2.0) + (lck * 0.5)}
+
+crit_rate = {(lck / (lck + 150)) * 100}
+crit_dmg_mult = {1.5 + (dex * 0.01)}
+accuracy = {100 + (dex * 0.5) + (lck * 0.2)}
+evasion = {(dex * 0.8) + (lck * 0.4)}
+
+phys_def = {(vit * 1.5) + (str * 0.5)}
+mag_def = {(wis * 1.8) + (fth * 1.2)}
+tenacity = {(end * 1.1) + (vit * 0.4)}
+
+block_chance = {(str / (str + 200)) * 50}
+parry_window = {(dex * 0.1) + (wis * 0.05)}
+dmg_mitigation = {phys_def / (phys_def + 250)}
+
+weight_cap = {str * 5.5}
+current_load = {42.8}
+burden_factor = {current_load / weight_cap}
+move_speed = {(dex * 0.2) + 5.0}
+effective_speed = {move_speed * (1 - (burden_factor ** 2))}
+
+health_regen = {(vit * [0]) + (end * 0.02)}
+mana_regen = {(int * 0.08) + (wis * 0.12)}
+stamina_recovery = {end * 0.25}
+
+gold_find = {1 + (lck * 0.02)}
+magic_find = {lck ** 0.5}
+haggling_discount = {(int * 0.1) + (wis * 0.1)}
+
+pop_total = {1500000}
+mobilization_rate = {0.05 + (fth * 0.001)}
+soldier_count = {pop_total * mobilization_rate}
+infantry_power = {soldier_count * (str / 10)}
+tactical_mult = {1 + (int / 50) + (wis / 50)}
+total_military_strength = {infantry_power * tactical_mult}
+
+annual_revenue = {(pop_total * 10) * (1 + (int / 100))}
+upkeep_cost = {soldier_count * 15}
+treasury_net = {annual_revenue - upkeep_cost}
