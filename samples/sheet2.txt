@@ -1,0 +1,7 @@
+# My Awesome Sheet
+# v1.0.0
+
+level = {42} # The answer makes as much sense as the question itself.
+level_bonus = {level / 100}
+strengh = {(16*4) * level_bonus}
+defense = {(32*4) * level_bonus}

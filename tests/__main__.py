@@ -5,24 +5,26 @@ from pprint import pprint
 
 #@perf_checker(100, True)
 def main():
-    sm: SheetManager = SheetManager()
-    sm.new_sheet("s1")
-    #my_sheet = sm.get_sheet("s1")
-
-    ss: SheetSyntax = SheetSyntax()
-    exprEval: ExprEvaluator = ExprEvaluator()
-
-    data: [int, str] = {
-        0: "0.05",
-        45: "13000000"
+    data = {
+        0: "0.005",
+        45: "100000"
     }
-
-    with open("samples/sheet1.txt", "r") as f:
-        samp = ss.clear_spaces(f.read())
-        result = ss.sheet_to_dict(samp,
-                                  data)
-        exprEval.eval_functions(result)
-        pprint(result)
-
+    sm: SheetManager = SheetManager()
+    sm.new_sheet("fullworthia_rp")
+    
+    string: str = """
+    max_hp = {12*6}
+    strengh = {[45]*[0]}
+    """
+    
+    #sm.del_sheet("fullworthia_rp")
+    my_sheet = sm["fullworthia_rp"]
+    print(my_sheet)
+    #my_sheet.from_file("samples/sheet1.txt",
+    #                   data)
+    my_sheet.from_string(string,
+                         data)
+    pprint(my_sheet.solve_expressions())
+    print(my_sheet.get_all_stats())
 if __name__ == "__main__":
     main()

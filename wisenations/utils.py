@@ -39,10 +39,12 @@ class ExprEvaluator:
     def __init__(self):
         pass
     
-    def eval_functions(self, sheet: dict[str, str]):
-        def rounding(value):
+    def eval_functions(self,
+                       sheet: dict[str, str],
+                       rounding: Any = DEFAULT_ROUNDING):
+        def decimal_rounding(value):
             with localcontext() as lc:
-                lc.rounding = DEFAULT_ROUNDING
+                lc.rounding = rounding
                 d = Decimal(str(value))
                 d = d.quantize(Decimal("0.001"))
                 return f"{d.normalize():f}"
@@ -50,7 +52,7 @@ class ExprEvaluator:
         for var, expr in sheet.items():
             new_expr = simplify(expr,
                                 rational=True).n()
-            new_expr = rounding(new_expr)
+            new_expr = decimal_rounding(new_expr)
             sheet.update({var: new_expr})
     
 
@@ -58,9 +60,23 @@ class SheetSyntax:
     def __init__(self):
         pass
     
-    def clear_spaces(self, text: str):
-        return text.replace(" ", "")
-    def sheet_to_dict(self,
+    def clear_spaces(self, text: str) -> str:
+        return re.sub(r"\s",
+                      "",
+                      text)
+    def clear_comments(self, text: str) -> str:
+        patt = r"\s*#.*"
+        comments_found = re.findall(patt,
+                                    text,
+                                    re.MULTILINE)
+        new_text: str = text
+        for comment in comments_found:
+            new_text = re.sub(rf"{comment}",
+                              "",
+                              new_text,
+                              re.IGNORECASE)
+        return new_text
+    def text_to_dict(self,
                       text: str,
                       census_data: None | dict[int: str] = None):
         def replace_censuses(expression: str,
@@ -89,7 +105,9 @@ class SheetSyntax:
                         new_value = re.sub(pattern, repl, new_value)
                 dictionary[k] = new_value
             return dictionary
-        data = re.findall(r"([a-z_]+?)=\{(.+?)\}",
+        text = self.clear_comments(text)
+        text = self.clear_spaces(text)
+        data = re.findall(r"([a-z_]+?)\s*=\s*\{(.+?)\}",
                           text,
                           re.MULTILINE)
         new_dict: dict[str, str] = {}
@@ -101,73 +119,63 @@ class SheetSyntax:
 @dataclass
 class Sheet:
     def __init__(self) -> None:
-        self.stats = {}
-
-    def get_all_stats(self):
-        return self.stats
+        self._stats: dict[str, str] = {}
+    def __getitem__(self, key: str):
+        return self._stats[key]
+    def __setitem__(self,
+                    key: str,
+                    value: str):
+        if not isinstance(key, str) or not isinstance(value, str):
+            raise TypeError(f"key and value must be of type string, but got {type(key).__name__}: {type(value).__name__}")
+        self._stats[key] = value
+    def __len__(self):
+        return len(self._stats.keys())
+    def __str__(self):
+        return f"Sheet({len(self)} stats)"
         
-    def get_stat(self, id: str):
-        return self.stats.get(id)
-        
-    def add_stats(self, stats_dict: dict[str, str]):
+    def get_all_stats(self) -> dict[str, str]:
+        return self._stats   
+    def get_stat(self,
+                 id: str) -> str:
+        return self._stats.get(id)   
+    def add_stats(self,
+                  stats_dict: dict[str, str]) -> None:
         for id, expr in stats_dict.items():
-            self.stats.update({id: expr})
-            
-    def del_stats(self, ids: list[str]):
-        for id in ids:
-            self.stats.pop(id)
-    
-    def solve_expressions(self, ns_censuses: dict[int, Any] = None, rounding = DEFAULT_ROUNDING):
-        if ns_censuses and not isinstance(ns_censuses, dict):
-            raise TypeError(f"ns_censuses must be a dictionary, not {type(ns_censuses).__name__}")
-        all_stats = self.get_all_stats()
-        solved_sheet = {}
-        
-        def parse_brackets(expr: str):
-            def parse_match(match: str):
-                replacement = ns_censuses[int(match.group(1))]
-                return replacement
-            pattern = r"(\[(\d+)\])"
-            new_expr = re.sub(pattern, parse_match, expr)
-            return new_expr
-        def parse_existing_stats(expr: str):
-            def parse_match(match: str):
-                stat_name = match.group(0)
-                replacement = all_stats.get(stat_name)
-                if replacement == None:
-                    raise NotFound(f"Couldn't parse '{expr}', '{stat_name}' not found")
-                return parse_existing_stats(replacement)
-            pattern = r"[a-z_A-Z]+"
-            new_expr = re.sub(pattern, parse_match, expr)
-            return new_expr
-                
-        def evaluate_expression(expr: str) -> Any:
-            safe_expr = SafeExpression(expr)
-            def numbers_to_decimals(x: str):
-                def parse_match(match: str):
-                    return f"Decimal('{match.group(0)}')"
-                pattern = r'-?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?'
-                new_string = re.sub(pattern, parse_match, x)
-                return new_string
-            with localcontext() as local_context:
-                safe_globals = {"__builtins__": {}}
-                safe_locals = {"Decimal": Decimal}
-                local_context.prec = 28
-                local_context.rounding = rounding
-                parsed_numbers = numbers_to_decimals(safe_expr)
-                return eval(parsed_numbers, safe_globals, safe_locals)
-        def parse_expr(expr: str):
-            if not isinstance(expr, str):
-                raise TypeError(f"expressions must be strings, but '{expr}' is {type(expr).__name__}")
-            parsed_existing_stats = parse_existing_stats(expr)
-            parsed_brackets = parse_brackets(parsed_existing_stats)
-            expr_result = evaluate_expression(parsed_brackets)
-            return expr_result
-        
-        for id, expr in all_stats.items():
-            parsed = parse_expr(expr)
-            solved_sheet.update({id: str(parsed)})
-        return solved_sheet
+            self._stats.update({id: expr})     
+    def del_stats(self,
+                  stats_ids: list[str]) -> None:
+        for id in stats_ids:
+            self._stats.pop(id)
+    def from_file(self,
+                  file_path: str,
+                  census_data: None | dict[int, str] = None) -> None:
+        """
+        ... WIP
+        """
+        with open(file_path, "r") as f:
+            sheetSyntax: SheetSyntax = SheetSyntax()
+            file_text: str = f.read()
+            stats_dict: dict[str, str] = sheetSyntax.text_to_dict(file_text,
+                                                                  census_data)
+            self.add_stats(stats_dict)
+    def from_string(self,
+                  string: str,
+                  census_data: None | dict[int, str] = None) -> None:
+        """
+        ... WIP
+        """
+        sheetSyntax: SheetSyntax = SheetSyntax()
+        stats_dict: dict[str, str] = sheetSyntax.text_to_dict(string,
+                                                              census_data)
+        self.add_stats(stats_dict)
+    def solve_expressions(self,
+                          census_data: dict[int, str] = None,
+                          rounding: Any = DEFAULT_ROUNDING) -> dict[str, str]:
+        sheet_data: dict[str, str] = self._stats
+        exprEval: ExprEvaluator = ExprEvaluator()
+        result: dict[str, str] = exprEval.eval_functions(sheet_data,
+                                                         rounding)
+        return result
     
 if __name__ == "__main__":
-    pass
+    ...
