@@ -34,7 +34,7 @@ burden_factor = {current_load / weight_cap}
 move_speed = {(dex * 0.2) + 5.0}
 effective_speed = {move_speed * (1 - (burden_factor ** 2))}
 
-health_regen = {(vit * [0]) + (end * 0.02)}
+health_regen = {(vit * 0.03) + (end * 0.02)}
 mana_regen = {(int * 0.08) + (wis * 0.12)}
 stamina_recovery = {end * 0.25}
 
