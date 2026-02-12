@@ -4,3 +4,9 @@ class InvalidExpression(Exception):
 
 class NotFound(Exception):
     pass
+
+class ParserError(Exception):
+    pass
+
+class SyntaxError(ParserError):
+    pass

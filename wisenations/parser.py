@@ -1,5 +1,5 @@
-from pyparsing import Word, Suppress, CharsNotIn, alphas, pythonStyleComment
-from typing import Final
+from pyparsing import Word, Suppress, CharsNotIn, Group, OneOrMore, alphas, pythonStyleComment, ParseException
+from .exceptions import SyntaxError
 from pprint import pprint
 
 class SyntaxParser:
@@ -22,26 +22,38 @@ class SyntaxParser:
                       "r",
                       encoding="utf-8") as f:
                 content = f.read()
-                #return f.read()
         except (FileNotFoundError, OSError):
             pass
         return content.strip()
     def parse(self,
               src: str) -> dict[str, str]:
-        text: str = self._source(src)
-
-        variable = Word(alphas+"_")("var")
-        expression_content = CharsNotIn("}")("expr")
+        # --- SYNTAX ---
+        # To declare a stat and it's
+        # mathematical expression:
+        # variable_name = { ... }
+        # 
+        # --- CENSUSES ---
+        # [0-88]: brackets with a
+        # integer inside.
+        
+        variable = Word(alphas+"_")
+        expression_content = CharsNotIn("}\n")("expr")
         l_brace = Suppress("{")
         r_brace = Suppress("}")
         assignment = Suppress("=")
         
         expression = l_brace + expression_content + r_brace
-        line_grammar = variable + assignment + expression
-        line_grammar.ignore(pythonStyleComment)
-        matches = line_grammar.search_string(text)
+        line_grammar = Group(variable("var") + assignment + expression)
+        top_grammar = OneOrMore(line_grammar)
+        top_grammar.ignore(pythonStyleComment)
         
-        result: dict[str, str] = {m.var: m.expr.strip() for m in matches}
+        text = self._source(src)
+        try:
+            matches = top_grammar.parse_string(text,
+                                               parse_all=True)
+        except ParseException as e:
+            raise SyntaxError(f"Couldn't parse stats sheet. {e}")
+        result: dict[str, str] = {m["var"]: m["expr"] for m in matches}
         return result
 
 if __name__ == "__main__":

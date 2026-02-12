@@ -1,15 +1,20 @@
-from pprint import pprint
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Generator
 import re
 from .exceptions import InvalidExpression, NotFound
-from decimal import Decimal, localcontext, ROUND_HALF_UP
+from decimal import Decimal, localcontext
 from .finals import DEFAULT_ROUNDING
+from .parser import SyntaxParser
+from graphlib import TopologicalSorter
 
-# Testing Sympy implementation for expression evaluation
-# Wait, are you really reading this?
-from sympy import simplify
+# Testing Sympy implementation for 
+# expression evaluation
+# Do people still read comments these
+# days?
+from sympy import simplify, Symbol, Float
 
+# TO DO: Find a new place for this
+# dude
 class SafeExpression(str):
     """
     A string subclass that validates it contains only safe mathematical characters.
@@ -34,92 +39,111 @@ class SafeExpression(str):
 
 class ExprEvaluator:
     """
-    A class for managing expression evaluation.
+    A class for managing expression
+    evaluation.
     """
     def __init__(self):
         pass
     
+    def resolve_dependencies(self,
+                             stats: dict[str, str],
+                             census_data: None | dict[int, str]) -> Generator:
+        """
+        Resolves dependencies and
+        returns a proper evaluation
+        order.
+        """
+        def resolve_censuses(expr, 
+                             census_data: None | dict[int, str]):
+            """
+            Searches for censuses in
+            an expression, if it finds
+            something, replaces them 
+            with the given census
+            data.
+            """
+            censuses = re.findall(r"(\[(\d+)\])",
+                                  expr)
+            new_expr = expr
+            if censuses:
+                for census in censuses:
+                    id: int = int(census[1])
+                    # Escapes ALL
+                    # regex special
+                    # characters. Such
+                    # as: [],*,?, ...
+                    # In practical
+                    # terms,
+                    # automatically
+                    # treats them as 
+                    # litteral strings.
+                    match: str = re.escape(census[0])
+                    new_expr = re.sub(rf"{match}",
+                                      census_data[id],
+                                      new_expr)
+            return new_expr
+ 
+        dependencies = {}
+        for stat, expr in stats.items():
+            stats.update({stat: resolve_censuses(expr, census_data)})
+            # Searches for stats
+            # (variables) in the an
+            # expression and adds them
+            # to the dependency list!
+            vars = set(re.findall(r"[a-z_]+", expr))
+            dependencies[stat] = vars if vars else {}
+        # Ensures stats are evaluated
+        # in the best logical order
+        # based on their dependencies.
+        # Necessary for complex
+        # dependency chains.
+        ts = TopologicalSorter(dependencies)
+        evaluation_order: Generator = ts.static_order()
+        return evaluation_order
     def eval_functions(self,
                        sheet: dict[str, str],
-                       rounding: Any = DEFAULT_ROUNDING):
-        def decimal_rounding(value):
+                       rounding: Any = DEFAULT_ROUNDING,
+                       census_data: None | dict[int, str] = None) -> dict[str, str]:
+        def decimal_rounding(value) -> str:
             with localcontext() as lc:
                 lc.rounding = rounding
                 d = Decimal(str(value))
                 d = d.quantize(Decimal("0.001"))
                 return f"{d.normalize():f}"
- 
-        for var, expr in sheet.items():
-            new_expr = simplify(expr,
-                                rational=True).n()
-            new_expr = decimal_rounding(new_expr)
-            sheet.update({var: new_expr})
-    
-
-class SheetSyntax:
-    def __init__(self):
-        pass
-    
-    def clear_spaces(self, text: str) -> str:
-        return re.sub(r"\s",
-                      "",
-                      text)
-    def clear_comments(self, text: str) -> str:
-        patt = r"\s*#.*"
-        comments_found = re.findall(patt,
-                                    text,
-                                    re.MULTILINE)
-        new_text: str = text
-        for comment in comments_found:
-            new_text = re.sub(rf"{comment}",
-                              "",
-                              new_text,
-                              re.IGNORECASE)
-        return new_text
-    def text_to_dict(self,
-                      text: str,
-                      census_data: None | dict[int: str] = None):
-        def replace_censuses(expression: str,
-                             census_data: None | dict [int, str]) -> str:
-            new_expr = expression
-            censuses_found = re.findall(r"(\[(\d+)\])",
-                                        new_expr)
-            for census in censuses_found:
-                id: int = int(census[1]) # 13, 88, 2, ...
-                instance: str = str(census[0]) # [13], [88], [2], ...
-                if instance and not census_data or not id in census_data:   
-                    raise ValueError(f"{new_expr} -> '{instance}', census {id} not found in the given data!")
-                repl: None | str = census_data.get(id) if census_data else None
-                if repl:
-                    new_expr = new_expr.replace(instance, repl)
-            return new_expr
-        def replace_vars(dictionary: dict[str, str]) -> dict[str, str]:
-            for k, v in dictionary.items():
-                new_value = v
-                new_value = replace_censuses(v, census_data)
-                vars_found = re.findall(r"[a-z_]+", v)
-                for var in vars_found:
-                    repl: None | str = dictionary.get(var)
-                    if repl:
-                        pattern = rf"\b{var}\b"
-                        new_value = re.sub(pattern, repl, new_value)
-                dictionary[k] = new_value
-            return dictionary
-        text = self.clear_comments(text)
-        text = self.clear_spaces(text)
-        data = re.findall(r"([a-z_]+?)\s*=\s*\{(.+?)\}",
-                          text,
-                          re.MULTILINE)
-        new_dict: dict[str, str] = {}
-        for key, value in data:
-            new_dict.update({key: value})
-        replace_vars(new_dict)
-        return new_dict
+        
+        previous_results: dict[Symbol, Float] = {}
+        final_result: dict[str, str] = {}
+        
+        # After dependencies are
+        # resolved and the
+        # evaluation order is
+        # returned...
+        for var in self.resolve_dependencies(sheet,
+                                             census_data):
+            simplified_expr = simplify(sheet[var])
+            # Uses previous 
+            # numerical results
+            # for replacing context
+            # and then evaluates it:
+            resolved_expr = simplified_expr.subs(previous_results)
+            numerical_expr: Float = resolved_expr.evalf()
+            
+            previous_results[Symbol(var)] = numerical_expr
+            # Formatting...
+            final_expr: str = decimal_rounding(str(numerical_expr))
+            # Maps the evaluated
+            # expression with it's
+            # respective variable
+            # (stat) in the sheet:
+            final_result[var] = final_expr
+         
+        return final_result
 
 @dataclass
 class Sheet:
     def __init__(self) -> None:
         self._stats: dict[str, str] = {}
+        self._parser: SyntaxParser = SyntaxParser()
     def __getitem__(self, key: str):
         return self._stats[key]
     def __setitem__(self,
@@ -147,34 +171,32 @@ class Sheet:
         for id in stats_ids:
             self._stats.pop(id)
     def from_file(self,
-                  file_path: str,
-                  census_data: None | dict[int, str] = None) -> None:
+                  file_path: str) -> None:
         """
         ... WIP
         """
-        with open(file_path, "r") as f:
-            sheetSyntax: SheetSyntax = SheetSyntax()
-            file_text: str = f.read()
-            stats_dict: dict[str, str] = sheetSyntax.text_to_dict(file_text,
-                                                                  census_data)
-            self.add_stats(stats_dict)
+        #with open(file_path, "r") as f:
+            #sheetSyntax: SheetSyntax = SheetSyntax()
+            #file_text: str = f.read()
+            #stats_dict: dict[str, str] = sheetSyntax.text_to_dict(file_text,
+            #                                                      census_data)
+        parsed = self._parser.parse(file_path)
+        self.add_stats(parsed)
     def from_string(self,
-                  string: str,
-                  census_data: None | dict[int, str] = None) -> None:
+                  string: str) -> None:
         """
         ... WIP
         """
-        sheetSyntax: SheetSyntax = SheetSyntax()
-        stats_dict: dict[str, str] = sheetSyntax.text_to_dict(string,
-                                                              census_data)
-        self.add_stats(stats_dict)
+        parsed = self._parser.parse(string)
+        self.add_stats(parsed)
     def solve_expressions(self,
                           census_data: dict[int, str] = None,
                           rounding: Any = DEFAULT_ROUNDING) -> dict[str, str]:
-        sheet_data: dict[str, str] = self._stats
+        sheet_data: dict[str, str] = self._stats.copy()
         exprEval: ExprEvaluator = ExprEvaluator()
         result: dict[str, str] = exprEval.eval_functions(sheet_data,
-                                                         rounding)
+                                                         rounding,
+                                                         census_data)
         return result
     
 if __name__ == "__main__":

@@ -5,7 +5,7 @@ vit = {50}
 fth = {12}
 lck = {18}
 end = {35}
-wis = {22}
+wis = {12}
 
 max_hp = {(vit * 20) + (str * 5) + (end * 2)}
 max_mp = {(int * 15) + (wis * 10) + (fth * 5)}
