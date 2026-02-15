@@ -1,4 +1,4 @@
-from pyparsing import Word, Suppress, CharsNotIn, Group, OneOrMore, alphas, pythonStyleComment, ParseException
+from pyparsing import Word, Suppress, CharsNotIn, Group, OneOrMore, alphas, pythonStyleComment, ParseException, ParseResults
 from .exceptions import SyntaxError
 from pprint import pprint
 
@@ -15,7 +15,7 @@ class SyntaxParser:
     def __init__(self):
         pass
     
-    def _grammar_rules(self):
+    def _grammar_rules(self) -> OneOrMore:
         variable = Word(alphas+"_")
         expression_content = CharsNotIn("}\n")("expr")      
         l_brace = Suppress("{")
@@ -32,7 +32,7 @@ class SyntaxParser:
               src: str) -> dict[str, str]:
         grammar = self._grammar_rules()
         try:
-            matches = None
+            matches: None | ParseResults = None
             match src_type:
                 case "string":
                     matches = grammar.parse_string(src,
@@ -40,6 +40,8 @@ class SyntaxParser:
                 case "file":
                     matches = grammar.parse_file(src,
                                                  parse_all=True)
+                case _:
+                    raise ValueError(f"'{src_type}' is not a valid src_type")
             result: dict[str, str] = {m["var"]: m["expr"] for m in matches}
             return result
         except ParseException as e:

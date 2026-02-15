@@ -1,3 +1,9 @@
 __pycache__/
 wisenations.egg-info/
-sample.txt
+
+# Ignore any directory (folder) that
+# starts with a "_" in their name.
+# (This doesn't affect files)
+_*/
+#/_samples
+#/_tests

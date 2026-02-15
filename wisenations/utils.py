@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from typing import Any, Generator
 import re
 from .exceptions import InvalidExpression, NotFound, EvaluationError
@@ -12,6 +11,8 @@ from graphlib import TopologicalSorter, CycleError
 # expression evaluation
 # Do people still read comments these
 # days?
+# TO DO: Proper dependency 
+# licencing
 from sympy import simplify, Symbol, Float
 
 # TO DO: Find a new place for this
@@ -105,6 +106,11 @@ class ExprEvaluator:
                        sheet: dict[str, str],
                        rounding: Any = DEFAULT_ROUNDING,
                        census_data: None | dict[int, str] = None) -> dict[str, str]:
+        """
+        Takes a sheet, evaluates it
+        and returns it's evaluated
+        version.
+        """
         def decimal_rounding(value) -> str:
             with localcontext() as lc:
                 lc.rounding = rounding
@@ -146,7 +152,6 @@ class ExprEvaluator:
              raise EvaluationError(f"Redundant dependency: {nodes}")
         return final_result
 
-@dataclass
 class Sheet:
     def __init__(self) -> None:
         self._stats: dict[str, str] = {}
@@ -165,12 +170,24 @@ class Sheet:
         return f"Sheet({len(self)} stats)"
         
     def get_all_stats(self) -> dict[str, str]:
+        """
+        Returns all stats in
+        this sheet.
+        """
         return self._stats   
     def get_stat(self,
-                 id: str) -> str:
+                 id: str) -> None | str:
+        """
+        Gets a stat from this sheet, 
+        returns None if 
+        it doesn't exist.
+        """           
         return self._stats.get(id)   
     def add_stats(self,
                   stats_dict: dict[str, str]) -> None:
+        """
+        Add stats to this sheet.
+        """
         for stat, expr in stats_dict.items():
             if not isinstance(stat, str):
                 raise TypeError(f"Stats must be string objects, not {type(stat).__name__}")
@@ -178,13 +195,17 @@ class Sheet:
                 raise TypeError(f"{stat}: expressions must be string objects, not {type(expr).__name__}")
             self._stats.update({stat: expr})     
     def del_stats(self,
-                  stats_ids: list[str]) -> None:
-        for id in stats_ids:
+                  stat_ids: list[str]) -> None:
+        """
+        Removes stats from this
+        sheet.
+        """
+        for id in stat_ids:
             self._stats.pop(id)
     def from_file(self,
                   file_path: str) -> None:
         """
-        ... WIP
+        Gets stats data from a file.
         """
         parsed = self._parser.parse("file",
                                     file_path)
@@ -192,7 +213,7 @@ class Sheet:
     def from_string(self,
                     string: str) -> None:
         """
-        ... WIP
+        Gets stats data from a string.
         """
         parsed = self._parser.parse("string",
                                     string)
@@ -200,6 +221,11 @@ class Sheet:
     def solve_expressions(self,
                           census_data: None | dict[int, str] = None,
                           rounding: Any = DEFAULT_ROUNDING) -> dict[str, str]:
+        """
+        Returns an evaluated copy of
+        your stats. The original data
+        remains the same.
+        """
         sheet_data: dict[str, str] = self._stats.copy()
         exprEval: ExprEvaluator = ExprEvaluator()
         result: dict[str, str] = exprEval.eval_functions(sheet_data,
