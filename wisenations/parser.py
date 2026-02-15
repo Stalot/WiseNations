@@ -2,42 +2,22 @@ from pyparsing import Word, Suppress, CharsNotIn, Group, OneOrMore, alphas, pyth
 from .exceptions import SyntaxError
 from pprint import pprint
 
+# --- SYNTAX ---
+# To declare a stat and it's
+# mathematical expression:
+# variable_name = { ... }
+# 
+# --- CENSUSES ---
+# [0-88]: brackets with a
+# integer inside.
+
 class SyntaxParser:
     def __init__(self):
         pass
     
-    def _source(self, src: str) -> str:
-        """
-        Tries to open and read the
-        text of a file if src
-        is a file path, otherwise,
-        returns src as a normal
-        string object.
-        """
-        content: str = src
-        if not isinstance(src, str):
-            raise TypeError(f"src must be of type str, not {type(src).__name__}")
-        try:
-            with open(src,
-                      "r",
-                      encoding="utf-8") as f:
-                content = f.read()
-        except (FileNotFoundError, OSError):
-            pass
-        return content.strip()
-    def parse(self,
-              src: str) -> dict[str, str]:
-        # --- SYNTAX ---
-        # To declare a stat and it's
-        # mathematical expression:
-        # variable_name = { ... }
-        # 
-        # --- CENSUSES ---
-        # [0-88]: brackets with a
-        # integer inside.
-        
+    def _grammar_rules(self):
         variable = Word(alphas+"_")
-        expression_content = CharsNotIn("}\n")("expr")
+        expression_content = CharsNotIn("}\n")("expr")      
         l_brace = Suppress("{")
         r_brace = Suppress("}")
         assignment = Suppress("=")
@@ -46,15 +26,24 @@ class SyntaxParser:
         line_grammar = Group(variable("var") + assignment + expression)
         top_grammar = OneOrMore(line_grammar)
         top_grammar.ignore(pythonStyleComment)
-        
-        text = self._source(src)
+        return top_grammar
+    def parse(self,
+              src_type: str,
+              src: str) -> dict[str, str]:
+        grammar = self._grammar_rules()
         try:
-            matches = top_grammar.parse_string(text,
-                                               parse_all=True)
+            matches = None
+            match src_type:
+                case "string":
+                    matches = grammar.parse_string(src,
+                                                   parse_all=True)
+                case "file":
+                    matches = grammar.parse_file(src,
+                                                 parse_all=True)
+            result: dict[str, str] = {m["var"]: m["expr"] for m in matches}
+            return result
         except ParseException as e:
             raise SyntaxError(f"Couldn't parse stats sheet. {e}")
-        result: dict[str, str] = {m["var"]: m["expr"] for m in matches}
-        return result
 
 if __name__ == "__main__":
     sp = SyntaxParser()

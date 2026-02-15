@@ -1,4 +1,7 @@
 
+class EvaluationError(Exception):
+    pass
+
 class InvalidExpression(Exception):
     pass
 

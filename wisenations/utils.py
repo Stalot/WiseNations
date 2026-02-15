@@ -1,11 +1,12 @@
 from dataclasses import dataclass
 from typing import Any, Generator
 import re
-from .exceptions import InvalidExpression, NotFound
+from .exceptions import InvalidExpression, NotFound, EvaluationError
 from decimal import Decimal, localcontext
 from .finals import DEFAULT_ROUNDING
 from .parser import SyntaxParser
-from graphlib import TopologicalSorter
+from graphlib import TopologicalSorter, CycleError
+
 
 # Testing Sympy implementation for 
 # expression evaluation
@@ -118,25 +119,31 @@ class ExprEvaluator:
         # resolved and the
         # evaluation order is
         # returned...
-        for var in self.resolve_dependencies(sheet,
-                                             census_data):
-            simplified_expr = simplify(sheet[var])
-            # Uses previous 
-            # numerical results
-            # for replacing context
-            # and then evaluates it:
-            resolved_expr = simplified_expr.subs(previous_results)
-            numerical_expr: Float = resolved_expr.evalf()
+        try:
+            for var in self.resolve_dependencies(sheet,
+                                                 census_data):
+                simplified_expr = simplify(sheet[var])
+                # Uses previous 
+                # numerical results
+                # for replacing 
+                # context
+                # and then evaluates 
+                # it:
+                resolved_expr = simplified_expr.subs(previous_results)
+                numerical_expr: Float = resolved_expr.evalf()
             
-            previous_results[Symbol(var)] = numerical_expr
-            # Formatting...
-            final_expr: str = decimal_rounding(str(numerical_expr))
-            # Maps the evaluated
-            # expression with it's
-            # respective variable
-            # (stat) in the sheet:
-            final_result[var] = final_expr
-         
+                previous_results[Symbol(var)] = numerical_expr
+                # Formatting...
+                final_expr: str = decimal_rounding(str(numerical_expr))
+                # Maps the evaluated
+                # expression with
+                # it's
+                # respective variable
+                # (stat) in the sheet:
+                final_result[var] = final_expr
+        except CycleError as ce:
+             nodes: str = " -> ".join(ce.args[1])
+             raise EvaluationError(f"Redundant dependency: {nodes}")
         return final_result
 
 @dataclass
@@ -164,8 +171,12 @@ class Sheet:
         return self._stats.get(id)   
     def add_stats(self,
                   stats_dict: dict[str, str]) -> None:
-        for id, expr in stats_dict.items():
-            self._stats.update({id: expr})     
+        for stat, expr in stats_dict.items():
+            if not isinstance(stat, str):
+                raise TypeError(f"Stats must be string objects, not {type(stat).__name__}")
+            if not isinstance(expr, str):
+                raise TypeError(f"{stat}: expressions must be string objects, not {type(expr).__name__}")
+            self._stats.update({stat: expr})     
     def del_stats(self,
                   stats_ids: list[str]) -> None:
         for id in stats_ids:
@@ -175,22 +186,19 @@ class Sheet:
         """
         ... WIP
         """
-        #with open(file_path, "r") as f:
-            #sheetSyntax: SheetSyntax = SheetSyntax()
-            #file_text: str = f.read()
-            #stats_dict: dict[str, str] = sheetSyntax.text_to_dict(file_text,
-            #                                                      census_data)
-        parsed = self._parser.parse(file_path)
+        parsed = self._parser.parse("file",
+                                    file_path)
         self.add_stats(parsed)
     def from_string(self,
-                  string: str) -> None:
+                    string: str) -> None:
         """
         ... WIP
         """
-        parsed = self._parser.parse(string)
+        parsed = self._parser.parse("string",
+                                    string)
         self.add_stats(parsed)
     def solve_expressions(self,
-                          census_data: dict[int, str] = None,
+                          census_data: None | dict[int, str] = None,
                           rounding: Any = DEFAULT_ROUNDING) -> dict[str, str]:
         sheet_data: dict[str, str] = self._stats.copy()
         exprEval: ExprEvaluator = ExprEvaluator()
