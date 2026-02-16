@@ -5,7 +5,7 @@ from decimal import Decimal, localcontext
 from .finals import DEFAULT_ROUNDING
 from .parser import SyntaxParser
 from graphlib import TopologicalSorter, CycleError
-
+from .func_master import FuncMaster
 
 # Testing Sympy implementation for 
 # expression evaluation
@@ -117,7 +117,24 @@ class ExprEvaluator:
                 d = Decimal(str(value))
                 d = d.quantize(Decimal("0.001"))
                 return f"{d.normalize():f}"
-        
+        def solve_functions(expr: str,
+                            context: dict[Symbol, str]) -> str:
+            fm = FuncMaster()
+            new_expr: str = expr
+            funcs = re.findall(r"(([A-Z]+)\((.+)\))",
+                               new_expr,
+                               re.DOTALL)
+            if funcs:
+                for func in funcs:
+                    match = re.escape(func[0])
+                    name = func[1]
+                    args = func[2].replace(" ", "").replace(";", ",")
+                    simplified = simplify(args).subs(context)
+                    result = fm.call(name, simplified)
+                    new_expr = re.sub(rf"{match}",
+                                      result,
+                                      new_expr)
+            return str(new_expr)
         previous_results: dict[Symbol, Float] = {}
         final_result: dict[str, str] = {}
         
@@ -128,7 +145,10 @@ class ExprEvaluator:
         try:
             for var in self.resolve_dependencies(sheet,
                                                  census_data):
-                simplified_expr = simplify(sheet[var])
+                expr: str = sheet[var]
+                expr = solve_functions(expr,
+                                       previous_results)
+                simplified_expr = simplify(expr)
                 # Uses previous 
                 # numerical results
                 # for replacing 
@@ -136,11 +156,11 @@ class ExprEvaluator:
                 # and then evaluates 
                 # it:
                 resolved_expr = simplified_expr.subs(previous_results)
-                numerical_expr: Float = resolved_expr.evalf()
+                numerical_expr: Float = resolved_expr.evalf(chop=True)
             
                 previous_results[Symbol(var)] = numerical_expr
                 # Formatting...
-                final_expr: str = decimal_rounding(str(numerical_expr))
+                final_expr: str = str(numerical_expr)
                 # Maps the evaluated
                 # expression with
                 # it's
