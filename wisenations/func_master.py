@@ -1,7 +1,7 @@
 from string import ascii_letters, digits
 import math
 from decimal import Decimal, InvalidOperation, ROUND_CEILING, ROUND_FLOOR
-from random import random
+from random import random, randint
 from typing import Any, Iterable
 from sympy import Tuple
 
@@ -13,7 +13,9 @@ class FuncMaster:
             "CEIL": self._ceil,
             "FLOOR": self._floor,
             "SQRT": self._sqrt,
-            "RNG": self._rng
+            "RNG": self._rng,
+            "RANDBETWEEN": self._rand_between,
+            "AVG": self._average
         }
     
     def _max(self, args: list[Decimal]):
@@ -30,8 +32,14 @@ class FuncMaster:
         num = args[0]
         return math.sqrt(num)
     def _rng(self, args: list[Decimal]):
-        max_range = args[0]
-        return max_range * Decimal(str(random()))
+        return Decimal(str(random()))
+    def _rand_between(self, args: list[Decimal]):
+        min_value: int = int(args[0])
+        max_value: int = int(args[1])
+        result = randint(min_value, max_value+1)
+        return result
+    def _average(self, args: list[Decimal]):
+        return sum(args) / len(args)
     def call(self, 
              func_id: str,
              args: str):
@@ -48,8 +56,12 @@ class FuncMaster:
                 except InvalidOperation as io:
                     raise ValueError(f"Couldn't convert {value} to a Decimal — {io}")
             return result
-        return str(self.funcs[func_id](parse_args(args)))
-
+        try:
+            return str(self.funcs[func_id](parse_args(args)))
+        except KeyError:
+            raise ValueError(f"{func_id}() is not a known function")
+        except IndexError as ie:
+            raise ValueError(f"{ie} — Failed to satisfy {func_id}()'s necessary parameters")
 if __name__ == "__main__":
     fm = FuncMaster()
     result = fm.call("CEIL", "67.757")

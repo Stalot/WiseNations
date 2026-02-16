@@ -128,7 +128,9 @@ class ExprEvaluator:
                 for func in funcs:
                     match = re.escape(func[0])
                     name = func[1]
-                    args = func[2].replace(" ", "").replace(";", ",")
+                    print(f"{func[2]=}")
+                    args = solve_functions(func[2], context).replace(" ", "").replace(";", ",")
+                    print(f"{args=}")
                     simplified = simplify(args).subs(context)
                     result = fm.call(name, simplified)
                     new_expr = re.sub(rf"{match}",
